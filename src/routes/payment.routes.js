@@ -4,6 +4,7 @@ const db = require('../config/db');
 const env = require('../config/env');
 const { authenticate, authorize } = require('../middleware/auth');
 const { createAndEmitNotification } = require('../services/notificationService');
+const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
 
@@ -113,6 +114,15 @@ router.post('/stk-push', authenticate, authorize('customer'), async (req, res) =
       });
     }
 
+    await logAudit({
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      action: 'PAYMENT_STK_INITIATED',
+      targetType: 'payment',
+      targetId: checkoutRequestId,
+      details: { provider, totalAmount, mode: isSandbox ? 'sandbox' : 'live' },
+    });
+
     return res.status(201).json({
       mode: isSandbox ? 'sandbox' : 'live',
       message: isSandbox
@@ -152,3 +162,4 @@ router.get('/wallet', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+

@@ -33,3 +33,4 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
 }
 
 module.exports = { haversineDistanceKm };
+

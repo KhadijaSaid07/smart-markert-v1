@@ -11,7 +11,7 @@ const DEFAULT_ADMIN = {
   fullName: 'JamiiMarket System Admin',
   email: 'admin@smflb.com',
   password: '@Admin.smflb@21',
-  phone: '+255700000000',
+  phone: '+255675788310',
 };
 
 async function runDataInitializer() {

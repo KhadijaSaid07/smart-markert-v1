@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const db = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
@@ -88,6 +89,130 @@ router.get('/users', async (req, res) => {
   } catch (error) {
     console.error('[Admin Users] Error:', error);
     return res.status(500).json({ message: 'Failed to fetch users.' });
+  }
+});
+
+/**
+ * POST /api/admin/users
+ * Admin adds a user WITHOUT needing a password.
+ * Generates a secure random password hash + reset token so the user can set their own password.
+ */
+router.post('/users', async (req, res) => {
+  const client = await db.getClient();
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      password,
+      role = 'customer',
+      businessName,
+      businessCategory,
+      approvalStatus,
+    } = req.body;
+
+    if (!fullName || !email) {
+      return res.status(400).json({ message: 'Full name and email are required.' });
+    }
+
+    if (password && password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    }
+
+    const normalizedRole = ['customer', 'vendor', 'rider', 'admin'].includes(role) ? role : 'customer';
+    const normalizedEmail = email.trim().toLowerCase();
+    const initialApproval =
+      approvalStatus && ['pending', 'approved'].includes(approvalStatus)
+        ? approvalStatus
+        : normalizedRole === 'vendor' || normalizedRole === 'rider'
+          ? 'pending'
+          : 'approved';
+
+    const rawPassword = password && password.trim() ? password : crypto.randomBytes(24).toString('hex');
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
+    const resetToken = crypto.randomBytes(24).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      `INSERT INTO users (
+        full_name, email, phone, password_hash, role, approval_status, is_active,
+        reset_token_hash, reset_token_expires_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
+      RETURNING id, full_name, email, phone, role, approval_status, is_active, created_at`,
+      [
+        fullName.trim(),
+        normalizedEmail,
+        phone?.trim() || null,
+        passwordHash,
+        normalizedRole,
+        initialApproval,
+        resetTokenHash,
+        resetExpires,
+      ]
+    );
+
+    const newUser = rows[0];
+    await client.query(
+      'INSERT INTO escrow_wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
+      [newUser.id]
+    );
+
+    if (normalizedRole === 'vendor') {
+      await client.query(
+        `INSERT INTO businesses (owner_id, name, category, phone, email, approval_status)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          newUser.id,
+          businessName?.trim() || `${fullName.trim()} Business`,
+          businessCategory?.trim() || 'Other',
+          phone?.trim() || null,
+          normalizedEmail,
+          initialApproval,
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    if (initialApproval === 'pending') {
+      const admins = await db.query("SELECT id FROM users WHERE role = 'admin' AND is_active = TRUE");
+      for (const admin of admins.rows) {
+        await createAndEmitNotification({
+          userId: admin.id,
+          title: 'Approval Required',
+          message: `${newUser.full_name} (${normalizedRole}) was added and awaits approval.`,
+          category: 'approval',
+          metadata: { targetUserId: newUser.id, role: normalizedRole },
+        });
+      }
+    }
+
+    await logAudit({
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      action: 'ADMIN_USER_CREATED',
+      targetType: 'user',
+      targetId: newUser.id,
+      details: { email: newUser.email, role: normalizedRole, approvalStatus: initialApproval },
+    });
+
+    return res.status(201).json({
+      user: newUser,
+      setupToken: resetToken,
+      message: 'User created without password. They can set their password using the setup token.',
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error.code === '23505') {
+      return res.status(409).json({ message: 'A user with this email already exists.' });
+    }
+    console.error('[Admin Create User] Error:', error);
+    return res.status(500).json({ message: 'Failed to create user.' });
+  } finally {
+    client.release();
   }
 });
 
@@ -271,3 +396,4 @@ router.post('/ai/train', async (req, res) => {
 });
 
 module.exports = router;
+

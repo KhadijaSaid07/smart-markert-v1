@@ -46,3 +46,4 @@ module.exports = {
     mpesaCallbackUrl: process.env.MPESA_CALLBACK_URL || '',
   },
 };
+

@@ -13,3 +13,4 @@ async function logAudit({ actorId = null, actorEmail = null, action, targetType 
 }
 
 module.exports = { logAudit };
+

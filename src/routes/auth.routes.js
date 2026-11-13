@@ -194,12 +194,26 @@ router.post('/login', async (req, res) => {
     const { rows } = await db.query('SELECT * FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
 
     if (rows.length === 0) {
+      await logAudit({
+        actorEmail: normalizedEmail,
+        action: 'USER_LOGIN_FAILED',
+        targetType: 'login',
+        details: { reason: 'account_not_found' },
+      });
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
     const user = rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
+      await logAudit({
+        actorId: user.id,
+        actorEmail: user.email,
+        action: 'USER_LOGIN_FAILED',
+        targetType: 'login',
+        targetId: user.id,
+        details: { reason: 'invalid_password' },
+      });
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
@@ -219,6 +233,15 @@ router.post('/login', async (req, res) => {
     }
 
     const token = signToken(user);
+
+    await logAudit({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: 'USER_LOGIN_SUCCESS',
+      targetType: 'login',
+      targetId: user.id,
+      details: { role: user.role },
+    });
 
     let business = null;
     if (user.role === 'vendor') {
@@ -395,3 +418,4 @@ router.put('/change-password', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+

@@ -5,6 +5,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { createAndEmitNotification, emitToUser } = require('../services/notificationService');
 const { predictEtaMinutes } = require('../services/aiService');
 const { haversineDistanceKm } = require('../utils/geo');
+const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
 
@@ -329,6 +330,15 @@ router.post('/:id/verify-pin', async (req, res) => {
       category: 'payment',
     });
 
+    await logAudit({
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      action: 'DELIVERY_POD_VERIFIED',
+      targetType: 'delivery',
+      targetId: delivery.id,
+      details: { orderNumber: order.order_number, actualMinutes },
+    });
+
     return res.json({
       message: 'Proof of Delivery PIN verified! Order completed and escrow funds released.',
     });
@@ -342,3 +352,4 @@ router.post('/:id/verify-pin', async (req, res) => {
 });
 
 module.exports = router;
+

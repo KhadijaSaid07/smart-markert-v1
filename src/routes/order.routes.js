@@ -7,6 +7,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { createAndEmitNotification, emitToRole } = require('../services/notificationService');
 const { predictEtaMinutes } = require('../services/aiService');
 const { haversineDistanceKm } = require('../utils/geo');
+const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
 
@@ -231,6 +232,14 @@ router.post('/checkout', authorize('customer'), async (req, res) => {
 
     // Notify vendors and broadcast to riders
     for (const ord of createdOrders) {
+      await logAudit({
+        actorId: req.user.id,
+        actorEmail: req.user.email,
+        action: 'ORDER_CREATED',
+        targetType: 'order',
+        targetId: ord.id,
+        details: { orderNumber: ord.order_number, totalAmount: ord.total_amount },
+      });
       await createAndEmitNotification({
         userId: ord.vendorUserId,
         title: 'New Order Received',
@@ -366,3 +375,4 @@ router.put('/:id/status', authorize('vendor'), async (req, res) => {
 });
 
 module.exports = router;
+
