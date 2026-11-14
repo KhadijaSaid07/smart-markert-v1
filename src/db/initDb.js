@@ -28,6 +28,9 @@ async function initDatabase() {
   const schemaPath = path.join(__dirname, 'schema.sql');
   const schemaSql = fs.readFileSync(schemaPath, 'utf8');
   await db.query(schemaSql);
+  await db.query(
+    "ALTER TABLE products_services ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb"
+  );
   console.log('[DB Init] Schema applied successfully.');
   await runDataInitializer();
 }

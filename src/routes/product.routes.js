@@ -5,6 +5,19 @@ const { upload } = require('../middleware/upload');
 
 const router = express.Router();
 
+const uploadProductImages = upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'images', maxCount: 6 },
+]);
+
+function extractUploadedImages(req) {
+  const files = [
+    ...(req.files?.image || []),
+    ...(req.files?.images || []),
+  ];
+  return files.map((file) => `/uploads/${file.filename}`);
+}
+
 /**
  * GET /api/products/my (Vendor's own catalog)
  */
@@ -26,7 +39,7 @@ router.get('/my', authenticate, authorize('vendor'), async (req, res) => {
 /**
  * POST /api/products (Vendor creates product or service)
  */
-router.post('/', authenticate, authorize('vendor'), upload.single('image'), async (req, res) => {
+router.post('/', authenticate, authorize('vendor'), uploadProductImages, async (req, res) => {
   try {
     const bizRes = await db.query('SELECT id FROM businesses WHERE owner_id = $1', [req.user.id]);
     if (bizRes.rows.length === 0) return res.status(404).json({ message: 'Business not found.' });
@@ -52,7 +65,8 @@ router.post('/', authenticate, authorize('vendor'), upload.single('image'), asyn
       return res.status(400).json({ message: 'Name and price are required.' });
     }
 
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const uploadedImages = extractUploadedImages(req);
+    const imageUrl = uploadedImages[0] || null;
     const parsedCombos = comboOptions
       ? typeof comboOptions === 'string'
         ? JSON.parse(comboOptions)
@@ -62,8 +76,8 @@ router.post('/', authenticate, authorize('vendor'), upload.single('image'), asyn
     const { rows } = await db.query(
       `INSERT INTO products_services (
         business_id, item_type, name, description, category, price, promo_price, promo_ends_at,
-        billing_type, unit_label, stock_quantity, low_stock_threshold, is_available, combo_options, image_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        billing_type, unit_label, stock_quantity, low_stock_threshold, is_available, combo_options, image_url, images
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         businessId,
@@ -81,6 +95,7 @@ router.post('/', authenticate, authorize('vendor'), upload.single('image'), asyn
         isAvailable === true || isAvailable === 'true',
         JSON.stringify(parsedCombos),
         imageUrl,
+        JSON.stringify(uploadedImages),
       ]
     );
 
@@ -94,7 +109,7 @@ router.post('/', authenticate, authorize('vendor'), upload.single('image'), asyn
 /**
  * PUT /api/products/:id (Vendor updates product/service)
  */
-router.put('/:id', authenticate, authorize('vendor'), upload.single('image'), async (req, res) => {
+router.put('/:id', authenticate, authorize('vendor'), uploadProductImages, async (req, res) => {
   try {
     const bizRes = await db.query('SELECT id FROM businesses WHERE owner_id = $1', [req.user.id]);
     if (bizRes.rows.length === 0) return res.status(404).json({ message: 'Business not found.' });
@@ -115,7 +130,9 @@ router.put('/:id', authenticate, authorize('vendor'), upload.single('image'), as
       comboOptions,
     } = req.body;
 
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const uploadedImages = extractUploadedImages(req);
+    const imageUrl = uploadedImages[0] || null;
+    const imagesJson = uploadedImages.length > 0 ? JSON.stringify(uploadedImages) : null;
     const parsedCombos = comboOptions
       ? typeof comboOptions === 'string'
         ? JSON.parse(comboOptions)
@@ -137,8 +154,9 @@ router.put('/:id', authenticate, authorize('vendor'), upload.single('image'), as
         is_available = COALESCE($11, is_available),
         combo_options = COALESCE($12, combo_options),
         image_url = COALESCE($13, image_url),
+        images = COALESCE($14, images),
         updated_at = NOW()
-       WHERE id = $14 AND business_id = $15
+       WHERE id = $15 AND business_id = $16
        RETURNING *`,
       [
         name?.trim() || null,
@@ -154,6 +172,7 @@ router.put('/:id', authenticate, authorize('vendor'), upload.single('image'), as
         isAvailable !== undefined ? isAvailable === true || isAvailable === 'true' : null,
         parsedCombos ? JSON.stringify(parsedCombos) : null,
         imageUrl,
+        imagesJson,
         req.params.id,
         businessId,
       ]

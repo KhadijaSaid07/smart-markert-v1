@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS products_services (
   is_available BOOLEAN NOT NULL DEFAULT TRUE,
   combo_options JSONB NOT NULL DEFAULT '[]'::jsonb,
   image_url TEXT,
+  images JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

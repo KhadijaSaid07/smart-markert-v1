@@ -27,6 +27,7 @@ const paymentRoutes = require('./routes/payment.routes');
 const aiRoutes = require('./routes/ai.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const favoritesRoutes = require('./routes/favorites.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -103,6 +104,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/favorites', favoritesRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -128,6 +130,17 @@ async function startServer() {
       triggerOffPeakTraining().catch((err) =>
         console.error('[Cron AI] Error:', err.message)
       );
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(
+          `[JamiiMarket API] Port ${env.port} is already in use. Stop the existing server (e.g. "fuser -k ${env.port}/tcp") or set a different PORT in .env.`
+        );
+        process.exit(1);
+      }
+      console.error('[JamiiMarket API] Server error:', err);
+      process.exit(1);
     });
 
     server.listen(env.port, () => {

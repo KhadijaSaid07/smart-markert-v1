@@ -39,7 +39,6 @@ router.get('/', optionalAuthenticate, async (req, res) => {
 
     const userLat = lat != null ? Number(lat) : req.user?.latitude;
     const userLng = lng != null ? Number(lng) : req.user?.longitude;
-    const maxRadius = Number(radiusKm) || 25;
 
     let enriched = rows.map((b) => {
       const distanceKm = haversineDistanceKm(userLat, userLng, b.latitude, b.longitude);
@@ -47,9 +46,11 @@ router.get('/', optionalAuthenticate, async (req, res) => {
     });
 
     if (userLat != null && userLng != null && !Number.isNaN(userLat) && !Number.isNaN(userLng)) {
-      enriched = enriched
-        .filter((b) => b.distance_km === null || b.distance_km <= maxRadius)
-        .sort((a, b) => (a.distance_km ?? 9999) - (b.distance_km ?? 9999));
+      if (lat != null && lng != null && req.query.radiusKm != null) {
+        const maxRadius = Number(radiusKm) || 25;
+        enriched = enriched.filter((b) => b.distance_km === null || b.distance_km <= maxRadius);
+      }
+      enriched = enriched.sort((a, b) => (a.distance_km ?? 9999) - (b.distance_km ?? 9999));
     }
 
     return res.json({ businesses: enriched });

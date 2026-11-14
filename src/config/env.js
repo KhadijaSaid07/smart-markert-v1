@@ -13,6 +13,10 @@ module.exports = {
   port: Number(process.env.PORT) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
   db: {
+    connectionString: process.env.DATABASE_URL || null,
+    ssl:
+      process.env.DB_SSL === 'true' ||
+      (Boolean(process.env.DATABASE_URL) && process.env.DB_SSL !== 'false'),
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT) || 5432,
     database: process.env.DB_NAME || 'smart-markert-db',

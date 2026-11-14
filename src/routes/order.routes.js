@@ -114,7 +114,7 @@ router.post('/checkout', authorize('customer'), async (req, res) => {
           deliveryLongitude ?? req.user.longitude
         ) || 2.5;
 
-      const deliveryFee = fulfillmentType === 'delivery' ? Math.max(1500, Math.round(distKm * 800)) : 0;
+      const deliveryFee = fulfillmentType === 'delivery' ? Math.max(700, Math.round(distKm * 700)) : 0;
       const totalAmount = subtotal + deliveryFee;
 
       // Generate secure 4-digit Proof of Delivery (PoD) PIN

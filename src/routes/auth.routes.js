@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const env = require('../config/env');
 const { authenticate } = require('../middleware/auth');
+const { upload } = require('../middleware/upload');
 const { createAndEmitNotification } = require('../services/notificationService');
 const { logAudit } = require('../utils/audit');
 
@@ -359,7 +360,7 @@ router.get('/me', authenticate, async (req, res) => {
  */
 router.put('/profile', authenticate, async (req, res) => {
   try {
-    const { fullName, phone, locationLabel, latitude, longitude, vehicleType, preferredLanguage } = req.body;
+    const { fullName, phone, locationLabel, latitude, longitude, vehicleType, preferredLanguage, avatarUrl } = req.body;
     const { rows } = await db.query(
       `UPDATE users SET
         full_name = COALESCE($1, full_name),
@@ -369,8 +370,9 @@ router.put('/profile', authenticate, async (req, res) => {
         longitude = COALESCE($5, longitude),
         vehicle_type = COALESCE($6, vehicle_type),
         preferred_language = COALESCE($7, preferred_language),
+        avatar_url = COALESCE($8, avatar_url),
         updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $9
        RETURNING *`,
       [
         fullName?.trim() || null,
@@ -380,6 +382,7 @@ router.put('/profile', authenticate, async (req, res) => {
         longitude != null ? Number(longitude) : null,
         vehicleType?.trim() || null,
         preferredLanguage || null,
+        avatarUrl?.trim() || null,
         req.user.id,
       ]
     );
@@ -388,6 +391,27 @@ router.put('/profile', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[Profile Update] Error:', error);
     return res.status(500).json({ message: 'Failed to update profile.' });
+  }
+});
+
+/**
+ * POST /api/auth/avatar
+ * Upload profile image for any authenticated user (Customer, Vendor, Rider, Admin).
+ */
+router.post('/avatar', authenticate, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Please select an image file.' });
+    }
+    const avatarUrl = `/uploads/${req.file.filename}`;
+    const { rows } = await db.query(
+      'UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [avatarUrl, req.user.id]
+    );
+    return res.json({ user: sanitizeUser(rows[0]), avatarUrl, message: 'Profile photo updated.' });
+  } catch (error) {
+    console.error('[Avatar Upload] Error:', error);
+    return res.status(500).json({ message: 'Failed to upload profile photo.' });
   }
 });
 
