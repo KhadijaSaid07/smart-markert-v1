@@ -138,6 +138,10 @@ router.put(
         ]
       );
 
+      if (!rows[0]) {
+        return res.status(404).json({ message: 'Storefront not found for this vendor.' });
+      }
+
       return res.json({ business: rows[0], message: 'Storefront updated successfully.' });
     } catch (error) {
       console.error('[Update Storefront] Error:', error);

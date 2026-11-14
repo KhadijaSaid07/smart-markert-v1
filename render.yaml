@@ -1,0 +1,30 @@
+databases:
+  - name: jamiimarket-db
+    databaseName: smart_markert_db
+    user: jamiimarket
+    plan: free
+
+services:
+  - type: web
+    name: jamiimarket-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jamiimarket-db
+          property: connectionString
+      - key: DB_SSL
+        value: "true"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PAYMENT_MODE
+        value: sandbox
+

@@ -6,6 +6,14 @@ const db = require('../config/db');
 const { runDataInitializer } = require('./DataInitializer');
 
 async function ensureDatabaseExists() {
+  // Managed cloud Postgres (Render, Neon, Supabase, etc.) pre-creates the database
+  if (
+    env.db.connectionString ||
+    (env.db.host && env.db.host !== 'localhost' && env.db.host !== '127.0.0.1')
+  ) {
+    return;
+  }
+
   const client = new Client({
     host: env.db.host,
     port: env.db.port,

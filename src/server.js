@@ -32,9 +32,16 @@ const favoritesRoutes = require('./routes/favorites.routes');
 const app = express();
 const server = http.createServer(app);
 
+const corsOriginCheck = (origin, callback) => {
+  if (!origin || env.corsOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+  return callback(null, true); // Allow Netlify previews or configured origins
+};
+
 const io = new Server(server, {
   cors: {
-    origin: env.corsOrigins,
+    origin: corsOriginCheck,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
   },
@@ -147,7 +154,12 @@ async function startServer() {
       console.log(`[JamiiMarket API] Listening on port ${env.port} (${env.nodeEnv})`);
     });
   } catch (err) {
-    console.error('[JamiiMarket API] Startup failed:', err.message);
+    console.error('[JamiiMarket API] Startup failed:', err.message || err.code || err);
+    if (!env.db.connectionString && (env.db.host === 'localhost' || env.db.host === '127.0.0.1')) {
+      console.error(
+        '[JamiiMarket API] Hint: No DATABASE_URL found and DB_HOST is localhost. On Render, create a Render PostgreSQL database and set DATABASE_URL in your Web Service Environment Variables.'
+      );
+    }
     console.error('Make sure PostgreSQL is running and credentials in .env are valid.');
     process.exit(1);
   }
